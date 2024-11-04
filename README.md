@@ -1,1 +1,1 @@
-# ID1214-AI-and-Applied-Methods
+# ID1214 AI and Applied Methods
