@@ -19,7 +19,7 @@ nextPieces = []
 
 currBlock = None
 rotation = 0
-pos = Vector2(-1, -1)
+pos = Vector2(3, -1)
 
 def main():
     init()
@@ -71,14 +71,16 @@ def spawnBlock():
         random.shuffle(nextPieces)
     
     rotation = 0
-    pos = Vector2(3, 0)
+    pos = Vector2(3, -1)
+    if currBlock == blocks[len(blocks)-1]:
+        pos = Vector2(3, 0)
     
 def checkCollision(pos):
     global currBlock, rotation
     rotatedBlock = currBlock[rotation // 90]
     for i in range(4):
         if (pos.x + rotatedBlock[i].x < 0 or pos.x + rotatedBlock[i].x >= playArea.x
-            or pos.y + rotatedBlock[i].y < 0 or pos.y + rotatedBlock[i].y >= playArea.y):
+            or pos.y + rotatedBlock[i].y >= playArea.y):
             return True
         
         elif (gameState[pos.y+rotatedBlock[i].y][pos.x+rotatedBlock[i].x]):
@@ -100,7 +102,7 @@ def clearLines():
         if(sum(gameState[i]) == playArea.x):
             cleared.append(i)
             
-    gameState = [i for j, i in enumerate(gameState) if j not in cleared]
+    gameState = [row for idx, row in enumerate(gameState) if idx not in cleared]
     for i in range(len(cleared)):
         gameState.insert(0, [0]*playArea.x)
     
@@ -174,6 +176,7 @@ def gameLoop():
         # limits FPS to 60
         dt = clock.tick(60) / 1000
         
+        # Drop piece 2 cells / s 
         passedTime += dt
         if passedTime > 0.5:
             passedTime = 0
