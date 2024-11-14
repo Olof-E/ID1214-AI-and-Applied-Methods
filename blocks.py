@@ -84,6 +84,33 @@ lBlock = [
   ],
 ]
 
+jBlock = [
+  [
+    Vector2(0, 2),
+    Vector2(1, 2),
+    Vector2(2, 2),
+    Vector2(2, 3),
+  ],
+  [
+    Vector2(0, 3),
+    Vector2(1, 1),
+    Vector2(1, 2),
+    Vector2(1, 3),
+  ],
+  [
+    Vector2(0, 2),
+    Vector2(0, 3),
+    Vector2(1, 3),
+    Vector2(2, 3),
+  ],
+  [
+    Vector2(1, 1),
+    Vector2(1, 2), 
+    Vector2(1, 3), 
+    Vector2(2, 1),  
+  ],
+]
+
 sBlock = [
   [
     Vector2(0, 2),
@@ -147,4 +174,4 @@ oBlock = [
   ]
 ]*4
 
-blocks = [tBlock, iBlock, lBlock, sBlock, zBlock, oBlock,]
+blocks = [iBlock, jBlock, lBlock, oBlock, zBlock, tBlock, sBlock]
