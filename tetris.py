@@ -80,6 +80,9 @@ def checkCollision(pos):
         
     return 0
 
+def clearLines():
+    pass
+
 def updateState():
     if(not checkCollision(Vector2(pos.x, pos.y+1))):
         pos.y += 1
@@ -88,7 +91,7 @@ def updateState():
         for i in range(4):
             gameState[pos.y+rotatedBlock[i].y][pos.x+rotatedBlock[i].x] = 1
 
-        
+        clearLines()
         spawnBlock()
             
 
@@ -99,7 +102,6 @@ def gameLoop():
     while running:
         
         # poll for events
-        # pygame.QUIT event means the user clicked X to close your window
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -117,17 +119,17 @@ def gameLoop():
                     rotation = (rotation - 90) % 360 
 
         # fill the screen with a color to wipe away anything from last frame
-        screen.fill("black")
+        screen.fill((0, 0, 0))
         
         for i in range(playArea.y):
             for j in range(playArea.x):
-                draw_rect_alpha(screen, pygame.Color(255, 255*(not gameState[i][j]), 255*(not gameState[i][j]), 255 if gameState[i][j] else 40), pygame.Rect((screen.get_width()-playArea.x*32)/2.0+32*j, (screen.get_height()-playArea.y*32)/2.0+32*i,32,32), width=not gameState[i][j])
+                draw_rect_alpha(screen, (255, 255*(not gameState[i][j]), 255*(not gameState[i][j]), 255 if gameState[i][j] else 40), pygame.Rect((screen.get_width()-playArea.x*32)/2.0+32*j, (screen.get_height()-playArea.y*32)/2.0+32*i,32,32), width=not gameState[i][j])
         
         for i in range(4):
             rotatedBlock = currBlock[rotation // 90]
             topleft = ((screen.get_width()-playArea.x*32)/2.0, (screen.get_height()-playArea.y*32)/2.0)
                 
-            draw_rect_alpha(screen, pygame.Color(255, 0, 0, 255), pygame.Rect(topleft[0]+(pos.x+rotatedBlock[i].x)*32, topleft[1] + (pos.y + rotatedBlock[i].y)*32, 32, 32), 0)
+            draw_rect_alpha(screen, (255, 0, 0, 255), pygame.Rect(topleft[0]+(pos.x+rotatedBlock[i].x)*32, topleft[1] + (pos.y + rotatedBlock[i].y)*32, 32, 32), 0)
         
         # Draw border
         pygame.draw.rect(screen, (255,255,255), ((screen.get_width()-playArea.x*32)/2.0, (screen.get_height()-playArea.y*32)/2.0, playArea.x*32, playArea.y*32), width=2)
