@@ -1,18 +1,24 @@
 # Example file showing a basic pygame "game loop"
+from math import fabs
 import os
+import random
+
+from Vector2 import Vector2
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 from blocks import blocks
 
 gameState = []
-playArea = (10, 20)
+playArea = Vector2(10, 20)
 screen = None
 clock = None
 running = False
 
+nextPieces = []
+
 currBlock = None
 rotation = 0
-pos = (-1, -1)
+pos = Vector2(-1, -1)
 
 def main():
     init()
@@ -24,9 +30,9 @@ def init():
     global screen, clock, running, dt
     print("Game Started")
 
-    for i in range(playArea[1]):
+    for i in range(playArea.y):
         gameState.append([])
-        for _ in range(playArea[0]):
+        for _ in range(playArea.x):
             gameState[i].append(0)
     
     # print(gameState)
@@ -51,28 +57,40 @@ def rotate():
     pass
 
 def spawnBlock():
-    global currBlock, rotation, pos
+    global nextPieces, currBlock, rotation, pos
     
-    currBlock = blocks[0]
+    if len(nextPieces) == 0:
+        nextPieces = list(range(len(blocks)))
+        random.shuffle(nextPieces)
+        
+    currBlock = blocks[nextPieces.pop()]
     rotation = 0
-    pos = [3, 0]
+    pos = Vector2(3, 0)
     
 def checkCollision(pos):
     global currBlock, rotation
     rotatedBlock = currBlock[rotation // 90]
     for i in range(4):
-        if (pos[0] + rotatedBlock[i][0] < 0 or pos[0] + rotatedBlock[i][0] >= playArea[0]
-            or pos[1] + rotatedBlock[i][1] < 0 or pos[1] + rotatedBlock[i][1] >= playArea[1]):
+        if (pos.x + rotatedBlock[i].x < 0 or pos.x + rotatedBlock[i].x >= playArea.x
+            or pos.y + rotatedBlock[i].y < 0 or pos.y + rotatedBlock[i].y >= playArea.y):
             return True
         
-        elif (gameState[pos[1]+rotatedBlock[i][1]][pos[0]+rotatedBlock[i][0]]):
+        elif (gameState[pos.y+rotatedBlock[i].y][pos.x+rotatedBlock[i].x]):
             return True
         
-    return False
-    
+    return 0
+
 def updateState():
-    if(not checkCollision([pos[0], pos[1]+1])):
-        pos[1] += 1
+    if(not checkCollision(Vector2(pos.x, pos.y+1))):
+        pos.y += 1
+    else:
+        rotatedBlock = currBlock[rotation // 90]
+        for i in range(4):
+            gameState[pos.y+rotatedBlock[i].y][pos.x+rotatedBlock[i].x] = 1
+
+        
+        spawnBlock()
+            
 
 def gameLoop():
     global screen, clock, running, dt, currBlock, rotation, pos
@@ -86,42 +104,42 @@ def gameLoop():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_a and not checkCollision([pos[0] - 1, pos[1]]):
-                    pos[0] -= 1
-                elif event.key == pygame.K_d and not checkCollision([pos[0] + 1, pos[1]]):
-                    pos[0] += 1
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                if event.key == pygame.K_a and not checkCollision(Vector2(pos.x - 1, pos.y)):
+                    pos.x -= 1
+                elif event.key == pygame.K_d and not checkCollision(Vector2(pos.x + 1, pos.y)):
+                    pos.x += 1
                 
                 if event.key ==  pygame.K_q:
-                    rotation = +(rotation + 90) % 360 
+                    rotation = (rotation + 90) % 360 
                 elif event.key ==  pygame.K_e:
-                    rotation = +(rotation - 90) % 360 
+                    rotation = (rotation - 90) % 360 
 
         # fill the screen with a color to wipe away anything from last frame
         screen.fill("black")
         
-        for i in range(playArea[1]):
-            for j in range(playArea[0]):
-                draw_rect_alpha(screen, pygame.Color(255, 255*(not gameState[i][j]), 255*(not gameState[i][j]), 255 if gameState[i][j] else 40), pygame.Rect((screen.get_width()-playArea[0]*32)/2.0+32*j, (screen.get_height()-playArea[1]*32)/2.0+32*i,32,32), width=not gameState[i][j])
+        for i in range(playArea.y):
+            for j in range(playArea.x):
+                draw_rect_alpha(screen, pygame.Color(255, 255*(not gameState[i][j]), 255*(not gameState[i][j]), 255 if gameState[i][j] else 40), pygame.Rect((screen.get_width()-playArea.x*32)/2.0+32*j, (screen.get_height()-playArea.y*32)/2.0+32*i,32,32), width=not gameState[i][j])
         
         for i in range(4):
             rotatedBlock = currBlock[rotation // 90]
-            topleft = ((screen.get_width()-playArea[0]*32)/2.0, (screen.get_height()-playArea[1]*32)/2.0)
+            topleft = ((screen.get_width()-playArea.x*32)/2.0, (screen.get_height()-playArea.y*32)/2.0)
                 
-            draw_rect_alpha(screen, pygame.Color(255, 0, 0, 255), pygame.Rect(topleft[0]+(pos[0]+rotatedBlock[i][0])*32, topleft[1]+(pos[1]+rotatedBlock[i][1])*32, 32, 32), 0)
+            draw_rect_alpha(screen, pygame.Color(255, 0, 0, 255), pygame.Rect(topleft[0]+(pos.x+rotatedBlock[i].x)*32, topleft[1] + (pos.y + rotatedBlock[i].y)*32, 32, 32), 0)
         
-        pygame.draw.rect(screen, (255,255,255), ((screen.get_width()-playArea[0]*32)/2.0, (screen.get_height()-playArea[1]*32)/2.0, playArea[0]*32, playArea[1]*32), width=2)
-        # pygame.draw.circle(screen, "blue", player_pos, 40)
+        # Draw border
+        pygame.draw.rect(screen, (255,255,255), ((screen.get_width()-playArea.x*32)/2.0, (screen.get_height()-playArea.y*32)/2.0, playArea.x*32, playArea.y*32), width=2)
 
         # flip() the display to put your work on screen
         pygame.display.flip()
 
         # limits FPS to 60
-        # dt is delta time in seconds since last frame, used for framerate-
-        # independent physics.
         dt = clock.tick(60) / 1000
         
         passedTime += dt
-        if passedTime > 0.75:
+        if passedTime > 0.2:
             passedTime = 0
             updateState()
 
