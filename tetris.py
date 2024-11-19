@@ -1,13 +1,12 @@
 # Example file showing a basic pygame "game loop"
-from math import fabs
 import os
-import random
-from turtle import clear
-
-from Vector2 import Vector2
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+
 import pygame
 from blocks import blocks
+from Vector2 import Vector2
+
+import random
 
 gameState = []
 playArea = Vector2(10, 20)
@@ -24,6 +23,12 @@ heldAvailable = True
 rotation = 0
 pos = Vector2(3, -1)
 
+score = 0
+
+paused = False
+quickDropping = False
+
+lineClears = 0
 
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
@@ -43,7 +48,7 @@ def main():
 
 
 def init():
-    global screen, clock, running, dt, nextPieces
+    global screen, clock, running, dt, nextPieces, heldPiece, heldAvailable
     print("Game Started")
     
     gameState.clear()
@@ -52,13 +57,13 @@ def init():
         for _ in range(playArea.x):
             gameState[i].append(Vector2(0, -1))
     
-    # print(gameState)
-
     pygame.init()
     screen = pygame.display.set_mode((1080, 720), pygame.DOUBLEBUF, 32)
     clock = pygame.time.Clock()
     
     nextPieces = list(range(len(blocks)))
+    heldPiece = -1
+    heldAvailable = True
         
     random.shuffle(nextPieces)
        
@@ -110,11 +115,12 @@ def checkCollision(pos, rot):
     return 0
 
 def quickDrop():
-    currPiece = currBlock
-    while(currPiece == currBlock):
-        updateState()
-    pass
-
+    global quickDropping
+    
+    while(updateState("quickDrop")):
+        pass
+    
+    
 def clearLines():
     global gameState
     
@@ -127,23 +133,26 @@ def clearLines():
     for i in range(len(cleared)):
         gameState.insert(0, [Vector2(0, -1)]*playArea.x)
     
-def updateState():
+def updateState(abc):
     global heldAvailable
     
     if(not checkCollision(Vector2(pos.x, pos.y+1), rotation)):
         pos.y += 1
+        return True
     else:
         rotatedBlock = blocks[currBlock][rotation // 90]
         for i in range(4):
             gameState[pos.y+rotatedBlock[i].y][pos.x+rotatedBlock[i].x] = Vector2(1, currBlock)
-
+        print(f"added block: {currBlock} to the board from {abc}")
+        
         clearLines()
         spawnBlock()
         heldAvailable = True
+        return False
             
 
 def gameLoop():
-    global screen, clock, running, dt, currBlock, heldPiece, heldAvailable, rotation, pos
+    global screen, clock, running, dt, currBlock, heldPiece, heldAvailable, rotation, pos, paused
     
     passedTime = 0    
     while running:
@@ -153,6 +162,9 @@ def gameLoop():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    paused = not paused
+                
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 if event.key == pygame.K_a and not checkCollision(Vector2(pos.x - 1, pos.y), rotation):
@@ -188,7 +200,7 @@ def gameLoop():
     
         for i in range(playArea.y):
             for j in range(playArea.x):
-                draw_rect_alpha(screen, colors[gameState[i][j].y] if gameState[i][j].x else (255, 255, 255, 40), pygame.Rect((screen.get_width()-playArea.x*32)/2.0+32*j, (screen.get_height()-playArea.y*32)/2.0+32*i,32,32), width=not gameState[i][j].x)
+                draw_rect_alpha(screen, colors[gameState[i][j].y] if gameState[i][j].x else (255, 255, 255, 40), pygame.Rect(topleft.x+32*j, topleft.y+32*i,32,32), width=not gameState[i][j].x)
         
         for i in range(4):
             rotatedBlock = blocks[currBlock][rotation // 90]
@@ -196,12 +208,18 @@ def gameLoop():
             pygame.draw.rect(screen, colors[currBlock], pygame.Rect(topleft.x+(pos.x+rotatedBlock[i].x)*32, topleft.y + (pos.y + rotatedBlock[i].y)*32, 32, 32))
         
         # Draw next piece
-        pygame.draw.rect(screen, WHITE, (topleft.x+playArea.x*32 + 75, topleft.y, 175, 125), width=2)
+        pygame.draw.rect(screen, WHITE, (topleft.x+playArea.x*32 + 75, topleft.y, 6*32, 4*32), width=2)
         for i in range(4):
-            if nextPieces:
                 rotatedBlock = blocks[nextPieces[0]][0]
+                draw_rect_alpha(screen, colors[nextPieces[0]], pygame.Rect(topleft.x+playArea.x*32 + 75 + 48 + rotatedBlock[i].x*32, topleft.y - 32 + rotatedBlock[i].y*32, 32, 32), 0)
                 
-                draw_rect_alpha(screen, colors[nextPieces[0]], pygame.Rect(topleft.x+playArea.x*32 + 96 + rotatedBlock[i].x*32, topleft.y - 16 + rotatedBlock[i].y*32, 32, 32), 0)
+        
+        # Draw held piece
+        pygame.draw.rect(screen, WHITE, (topleft.x- 6*32 - 75, topleft.y, 6*32, 4*32), width=2)
+        if heldPiece != -1:
+            for i in range(4):
+                rotatedBlock = blocks[heldPiece][0]
+                draw_rect_alpha(screen, colors[heldPiece], pygame.Rect(topleft.x - 6*32 - 75 + 48 + rotatedBlock[i].x*32, topleft.y - 32 + rotatedBlock[i].y*32, 32, 32), 0)
         
         
         # Draw border
@@ -215,9 +233,9 @@ def gameLoop():
         
         # Drop piece 2 cells / s 
         passedTime += dt
-        if passedTime > 0.5:
+        if passedTime > 0.5 and not paused:
             passedTime = 0
-            updateState()
+            updateState("normal update")
 
 
 if __name__ == "__main__":
