@@ -1,5 +1,7 @@
 # Example file showing a basic pygame "game loop"
+import linecache
 import os
+from turtle import clear
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 
 import pygame
@@ -24,11 +26,13 @@ rotation = 0
 pos = Vector2(3, -1)
 
 score = 0
+level = 0
+lineClears = 0
+
 
 paused = False
 quickDropping = False
 
-lineClears = 0
 
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
@@ -122,16 +126,32 @@ def quickDrop():
     
     
 def clearLines():
-    global gameState
+    global gameState, score, level, lineClears
     
     cleared = []
     for i in range(playArea.y):
         if(sum(cell.x for cell in gameState[i]) == playArea.x):
             cleared.append(i)
-            
+
     gameState = [row for idx, row in enumerate(gameState) if idx not in cleared]
     for i in range(len(cleared)):
-        gameState.insert(0, [Vector2(0, -1)]*playArea.x)
+        gameState.insert(0, [Vector2(0, -1)]*playArea.x)    
+    
+    lineClears += len(cleared)
+    if(lineClears > 10):
+        lineClears = 0
+        level += 1
+    
+    if(len(cleared) == 1):
+        score += 40 * (level + 1)
+    elif(len(cleared) == 2):
+        score += 100 * (level + 1)
+    elif(len(cleared) == 3):
+        score += 300 * (level + 1)
+    elif(len(cleared) == 4):
+        score += 1200 * (level + 1)
+        
+    print(f"Score: {score}")
     
 def updateState(abc):
     global heldAvailable
