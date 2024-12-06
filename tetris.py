@@ -82,11 +82,15 @@ def draw_rect_alpha(surface, color, rect, width):
     pygame.draw.rect(shape_surf, color, shape_surf.get_rect(), width)
     surface.blit(shape_surf, rect)
 
-def move():
-    pass
+def move(direction):
+    global pos
+    if not checkCollision(Vector2(pos.x + direction, pos.y), rotation):
+        pos.x += direction
 
-def rotate():
-    pass
+def rotate(direction):
+    global rotation
+    if not checkCollision(Vector2(pos.x, pos.y), (rotation + 90 * direction) % 360):
+        rotation = (rotation + 90 * direction) % 360
 
 def spawnBlock():
     global nextPieces, currBlock, rotation, pos
@@ -155,6 +159,7 @@ def clearLines():
     
 def updateState(abc):
     global heldAvailable
+
     
     if(not checkCollision(Vector2(pos.x, pos.y+1), rotation)):
         pos.y += 1
@@ -176,7 +181,8 @@ def gameLoop():
     
     passedTime = 0    
     while running:
-        
+    
+    
         # poll for events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
