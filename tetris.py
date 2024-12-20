@@ -128,6 +128,25 @@ class Tetris():
             
         if(self.checkCollision(self.pos, self.rotation)):
             self.init()
+
+    def quickDrop(self):        
+        while(self.updateState()):
+            pass
+        
+    def switchHeld(self):
+        self.heldAvailable = False
+        if self.heldPiece == -1:
+            self.heldPiece = self.currBlock
+            self.spawnBlock()
+        else:
+            temp = self.heldPiece
+            self.heldPiece = self.currBlock
+            self.currBlock = temp
+            self.rotation = 0
+            self.pos = Vector2(3, -1)
+            if blocks[self.currBlock] == blocks[len(blocks)-1]:
+                self.pos = Vector2(3, 0)
+        
         
     def checkCollision(self, pos, rot):
         rotatedBlock = blocks[self.currBlock][rot // 90]
@@ -140,11 +159,6 @@ class Tetris():
                 return True
             
         return 0
-
-    def quickDrop(self):        
-        while(self.updateState()):
-            pass
-        
         
     def clearLines(self):        
         cleared = []
@@ -210,18 +224,7 @@ class Tetris():
                         self.quickDrop()
                     
                     if event.key == pygame.K_SPACE and self.heldAvailable:
-                        self.heldAvailable = False
-                        if self.heldPiece == -1:
-                            self.heldPiece = self.currBlock
-                            self.spawnBlock()
-                        else:
-                            temp = self.heldPiece
-                            self.heldPiece = self.currBlock
-                            self.currBlock = temp
-                            self.rotation = 0
-                            self.pos = Vector2(3, -1)
-                            if blocks[self.currBlock] == blocks[len(blocks)-1]:
-                                self.pos = Vector2(3, 0)
+                        self.switchHeld()
                                             
                     if event.key ==  pygame.K_q and not self.checkCollision(Vector2(self.pos.x, self.pos.y), (self.rotation + 90) % 360):
                         self.rotation = (self.rotation + 90) % 360 
