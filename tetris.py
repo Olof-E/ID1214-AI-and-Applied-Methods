@@ -69,15 +69,22 @@ class Tetris():
         self.paused = False
         self.quickDropping = False
         
+        self.dead = False
         
-    def start(self):
+        
+    def start(self, mode):
+        pygame.init()
         self.init()
-        self.gameLoop()
+        if(mode):
+            self.gameLoop()
+        
+    def quitGame(self):
         pygame.quit()
 
 
     def init(self):
         print("Game Started")
+        self.dead = False
         
         self.gameState.clear()
         for i in range(self.playArea.y):
@@ -85,7 +92,6 @@ class Tetris():
             for _ in range(self.playArea.x):
                 self.gameState[i].append(Vector2(0, -1))
         
-        pygame.init()
         self.screen = pygame.display.set_mode((1080, 720), pygame.DOUBLEBUF, 32)
         self.clock = pygame.time.Clock()
         
@@ -99,6 +105,44 @@ class Tetris():
             
         self.running = True
         self.dt = 0
+        self.passedTime = 0
+        
+        #  [ [Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec] 
+        #    [Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec]
+        # ]
+        
+        
+    def newGame(self):
+        print("New game started")
+        
+        self.dead = False
+        
+        self.gameState.clear()
+        for i in range(self.playArea.y):
+            self.gameState.append([])
+            for _ in range(self.playArea.x):
+                self.gameState[i].append(Vector2(0, -1))
+        
+        
+        self.rotation = 0
+        self.pos = Vector2(3, -1)
+
+        self.score = 0
+        self.level = 0
+        self.lineClears = 0         
+
+        self.nextPieces = list(range(len(blocks)))
+        self.heldPiece = -1
+        self.heldAvailable = True
+            
+        random.shuffle(self.nextPieces)
+        
+        self.spawnBlock()
+
+
+        self.dt = 0
+        self.passedTime = 0
+
 
 
     def draw_rect_alpha(self, surface, color, rect, width):
@@ -127,7 +171,8 @@ class Tetris():
             self.pos = Vector2(3, 0)
             
         if(self.checkCollision(self.pos, self.rotation)):
-            self.init()
+            self.dead = True
+            print("You Lost")
 
     def quickDrop(self):        
         while(self.updateState()):
@@ -199,18 +244,16 @@ class Tetris():
             self.spawnBlock()
             self.heldAvailable = True
             return False
-                
-
-    def gameLoop(self):        
-        passedTime = 0    
-        while self.running:
-        
-        
-            # poll for events
+    
+    def step(self):
+         # poll for events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN and self.dead:
+                        self.newGame()
+                    
                     if event.key == pygame.K_p:
                         self.paused = not self.paused
                     
@@ -270,10 +313,17 @@ class Tetris():
             self.dt = self.clock.tick(60) / 1000
             
             # Drop piece 2 cells / s 
-            passedTime += self.dt
-            if passedTime > 0.5 and not self.paused:
-                passedTime = 0
+            self.passedTime += self.dt
+            if self.passedTime > 0.5 and not self.paused and not self.dead:
+                self.passedTime = 0
                 self.updateState()
+
+    def gameLoop(self):     
+        while self.running:
+            self.step()
+            
+        quitGame()
+        
 
 
 if __name__ == "__main__":
