@@ -4,6 +4,8 @@ from __future__ import print_function
 
 
 import os
+import random
+from time import sleep
 
 from tetris import Tetris
 # Keep using keras-2 (tf-keras) rather than keras-3 (keras).
@@ -22,7 +24,6 @@ from tf_agents.environments import wrappers
 from tf_agents.environments import suite_gym
 from tf_agents.trajectories import time_step as ts
 
-from threading import Thread
 
 # Observations
 # 0 - 9   |  column height in playing area
@@ -48,16 +49,13 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     self._action_spec = array_spec.BoundedArraySpec(
         shape=(), dtype=np.int32, minimum=0, maximum=5, name='action')
     self._observation_spec = array_spec.BoundedArraySpec(
-        shape=(16,), dtype=np.int32, minimum=np.concatenate(([0]*10, [-1, -1, 0], [0]*3)), maximum=np.concatenate(([20]*10, [10, 20, 3], [7]*3)), name='observation')
+        shape=(1,16), dtype=np.int32, minimum=np.concatenate(([0]*10, [-1, -1, 0], [0]*2, [-1])), maximum=np.concatenate(([20]*10, [10, 20, 3], [7]*3)), name='observation')
     self._state = [0]*16
     self._episode_ended = False
     
-    print("is called 2")
     self.tetris = Tetris()
-    print("is called 3")
     
     self.tetris.start(False)
-    print("is called 4")
     
     
     
@@ -79,10 +77,8 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     
     self.tetris.newGame()
         
-    self._state[10] = self.tetris.pos.x
-    self._state[11] = self.tetris.pos.y
-    self._state[13] = self.tetris.currBlock
-    self._state[14] = self.tetris.nextPieces[0]
+
+    
     
     return ts.restart(np.array([self._state], dtype=np.int32))
 
@@ -91,8 +87,9 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     if self._episode_ended:
       # The last action ended the episode. Ignore the current action and start
       # a new episode.
-      return self.reset()
-
+      return self._reset()
+    
+    prevLineClear = self.tetris.lineClears
     
     if action == 0:
         self.tetris.move(-1)
@@ -122,12 +119,18 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     self._state[12] = self.tetris.rotation // 90
     self._state[13] = self.tetris.currBlock
     self._state[14] = self.tetris.nextPieces[0]
+    self._state[15] = self.tetris.heldPiece
     
     
-    if self._episode_ended or self.tetris.score > 10000 or self.tetris.dead:
+    if self.tetris.dead:
+        self._episode_ended = True
+    
+    
+    if self._episode_ended or self.tetris.score > 10000:
       reward = self.tetris.score / 1000
       return ts.termination(np.array([self._state], dtype=np.int32), reward)
     else:
+      reward = 2 if self.tetris.lineClears - prevLineClear == 4 else 0
       return ts.transition(
           np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
     
@@ -151,19 +154,20 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     #       np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
     
     
-environment = TetrisEnvironment()
-print("is called")
+# environment = TetrisEnvironment()
 
-time_step = environment.reset()
-print('Time step:')
-print(time_step)
-
-action = np.array(0, dtype=np.int32)
-
-for i in range(1000):
-    next_time_step = environment.step(action)
-    print('Next time step:')
-    print(next_time_step.observation)
+# time_step = environment.reset()
+# print('Time step:')
+# print(time_step)
 
 
-environment.tetris.quitGame()
+# for i in range(600):
+#     action = np.array(random.randint(0, 5), dtype=np.int32)
+#     sleep(0.015)
+#     next_time_step = environment.step(action)
+#     print('Next time step:')
+#     print(next_time_step)
+
+
+# environment.tetris.quitGame()
+

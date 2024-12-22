@@ -322,10 +322,10 @@ class Tetris():
         while self.running:
             self.step()
             
-        quitGame()
+        self.quitGame()
         
 
 
 if __name__ == "__main__":
     tetris = Tetris()
-    tetris.start()
+    tetris.start(True)
