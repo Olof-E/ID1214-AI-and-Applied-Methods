@@ -113,7 +113,7 @@ class Tetris():
         
         
     def newGame(self):
-        print("New game started")
+        # print("New game started")
         
         self.dead = False
         
@@ -172,7 +172,7 @@ class Tetris():
             
         if(self.checkCollision(self.pos, self.rotation)):
             self.dead = True
-            print("You Lost")
+            # print("You Lost")
 
     def quickDrop(self):        
         while(self.updateState()):
@@ -229,7 +229,7 @@ class Tetris():
         elif(len(cleared) == 4):
             self.score += 1200 * (self.level + 1)
             
-        print(f"Score: {self.score}")
+        # print(f"Score: {self.score}")
         
     def updateState(self):        
         if(not self.checkCollision(Vector2(self.pos.x, self.pos.y+1), self.rotation)):
@@ -310,11 +310,11 @@ class Tetris():
             pygame.display.flip()
 
             # limits FPS to 60
-            self.dt = self.clock.tick(60) / 1000
+            self.dt = self.clock.tick(600) / 1000
             
             # Drop piece 2 cells / s 
             self.passedTime += self.dt
-            if self.passedTime > 0.5 and not self.paused and not self.dead:
+            if self.passedTime > 0.05 and not self.paused and not self.dead:
                 self.passedTime = 0
                 self.updateState()
 

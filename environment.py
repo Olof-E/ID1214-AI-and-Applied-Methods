@@ -49,8 +49,10 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     self._action_spec = array_spec.BoundedArraySpec(
         shape=(), dtype=np.int32, minimum=0, maximum=5, name='action')
     self._observation_spec = array_spec.BoundedArraySpec(
-        shape=(1,16), dtype=np.int32, minimum=np.concatenate(([0]*10, [-1, -1, 0], [0]*2, [-1])), maximum=np.concatenate(([20]*10, [10, 20, 3], [7]*3)), name='observation')
-    self._state = [0]*16
+        shape=(22,), dtype=np.int32, minimum=np.concatenate(([0]*5, [-1], [0]*3, [-1]*2, [0], [0]*10)), maximum=np.concatenate(([50]*2, [4], [7]*3, [20]*2, [3], [10, 20], [1], [10]*10)), name='observation')
+    # self._observation_spec = array_spec.BoundedArraySpec(
+    #     shape=(16,), dtype=np.int32, minimum=np.concatenate(([0]*10, [-1, -1, 0], [0]*2, [-1])), maximum=np.concatenate(([20]*10, [10, 20, 3], [7]*3)), name='observation')
+    self._state = [0]*22
     self._episode_ended = False
     
     self.tetris = Tetris()
@@ -59,11 +61,11 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     
     
     
-    self._state[10] = self.tetris.pos.x
-    self._state[11] = self.tetris.pos.y
-    self._state[13] = self.tetris.currBlock
-    self._state[14] = self.tetris.nextPieces[0]
-
+    # self._state[10] = self.tetris.pos.x
+    # self._state[11] = self.tetris.pos.y
+    self._state[5] = self.tetris.currBlock
+    self._state[6] = self.tetris.nextPieces[0]
+    self._state[7] = self.tetris.heldPiece
 
   def action_spec(self):
     return self._action_spec
@@ -72,15 +74,22 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     return self._observation_spec
 
   def _reset(self):
-    self._state = [0]*16
+    self._state = [0]*22
     self._episode_ended = False
     
     self.tetris.newGame()
         
 
+    self._state[3] = self.tetris.currBlock
+    self._state[4] = self.tetris.nextPieces[0]
+    self._state[5] = self.tetris.heldPiece
     
+    self._state[8] = self.tetris.rotation // 90    
+    self._state[9] = self.tetris.pos.x
+    self._state[10] = self.tetris.pos.y
+    self._state[11] = int(self.tetris.heldAvailable)
     
-    return ts.restart(np.array([self._state], dtype=np.int32))
+    return ts.restart(np.array(self._state, dtype=np.int32))
 
   def _step(self, action):
 
@@ -90,6 +99,7 @@ class TetrisEnvironment(py_environment.PyEnvironment):
       return self._reset()
     
     prevLineClear = self.tetris.lineClears
+    prevBlock = self.tetris.currBlock
     
     if action == 0:
         self.tetris.move(-1)
@@ -101,38 +111,139 @@ class TetrisEnvironment(py_environment.PyEnvironment):
         self.tetris.rotate(1)
     elif action == 4:
         self.tetris.quickDrop()
-    elif action == 5:
+    elif action == 5 and self.tetris.heldAvailable:
         self.tetris.switchHeld()
         
     self.tetris.step()
     
     colHeights = [0]*10
+    totalHeight = 0
+    maxHeight = 0
+    minHeight = 99999
     for row in self.tetris.gameState:
-        for i, cell in enumerate(row):
-            colHeights[i] += cell.x
-            
-    for i in range(len(colHeights)):
-        self._state[i] = colHeights[i]
+      for i, cell in enumerate(row):
+        totalHeight += cell.x
     
-    self._state[10] = self.tetris.pos.x
-    self._state[11] = self.tetris.pos.y
-    self._state[12] = self.tetris.rotation // 90
-    self._state[13] = self.tetris.currBlock
-    self._state[14] = self.tetris.nextPieces[0]
-    self._state[15] = self.tetris.heldPiece
+    for row in self.tetris.gameState:
+      for i, cell in enumerate(row):        
+        if(cell.x and colHeights[i] == 0):
+          colHeights[i] = 20 - i
+          
+    
+    for i in range(len(colHeights)):
+      # self._state[i+8] = colHeights[i]
+      if(colHeights[i] > maxHeight):
+        maxHeight = colHeights[i]
+      elif(colHeights[i] < minHeight):
+        minHeight = colHeights[i]
+      
+      
+    # totalHeight /= 10
+    
+    for i in range(len(colHeights)):            
+      self._state[i+12] = abs(colHeights[i] - colHeights[max(0, i-1)]) + abs(colHeights[i] - colHeights[min(len(colHeights)-1, i+1)])
+
+
+    self._state[0] = totalHeight
+    
+    totalHoles = 0
+    for col in np.transpose(self.tetris.gameState):
+      filledCell = False
+      for i, cell in enumerate(col):
+          if(cell.x and not filledCell):
+            filledCell = True
+          elif(filledCell and not cell.x):
+            totalHoles += 1
+    
+    self._state[1] = totalHoles
+    self._state[2] = self.tetris.lineClears - prevLineClear
+    self._state[3] = self.tetris.currBlock
+    self._state[4] = self.tetris.nextPieces[0]
+    self._state[5] = self.tetris.heldPiece
+    self._state[6] = maxHeight
+    self._state[7] = minHeight
+
+    self._state[8] = self.tetris.rotation // 90        
+    self._state[9] = self.tetris.pos.x
+    self._state[10] = self.tetris.pos.y
+    self._state[11] = int(self.tetris.heldAvailable)
+    
+            
+            
+    # for i in range(len(colHeights)):
+    #     self._state[i] = colHeights[i]
+    
+    
+    
+    # self._state[10] = self.tetris.pos.x
+    # self._state[11] = self.tetris.pos.y
+    # self._state[12] = self.tetris.rotation // 90
+    # self._state[10] = self.tetris.currBlock
+    # self._state[11] = self.tetris.nextPieces[0]
+    # self._state[12] = self.tetris.heldPiece
     
     
     if self.tetris.dead:
         self._episode_ended = True
-    
-    
-    if self._episode_ended or self.tetris.score > 10000:
-      reward = self.tetris.score / 1000
-      return ts.termination(np.array([self._state], dtype=np.int32), reward)
+
+
+
+    if self._episode_ended:
+      reward = -2.5
+      for col in np.transpose(self.tetris.gameState):
+        filledCell = False
+        for i, cell in enumerate(col):
+            if(cell.x and not filledCell):
+              filledCell = True
+              reward += 0.01
+            elif(filledCell and not cell.x):
+              reward -= 0.05
+      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
     else:
-      reward = 2 if self.tetris.lineClears - prevLineClear == 4 else 0
+      reward = 0
+      if self.tetris.lineClears - prevLineClear > 0:
+        reward += 14 * (self.tetris.lineClears - prevLineClear)**2
+        
+      if self.tetris.currBlock != prevBlock:
+        reward += 0.5
+        
+      if abs(maxHeight - totalHeight/10) <= 4:
+        reward += 0.08
+      # else:
+      #   reward -= 0.05
+      
+      
       return ts.transition(
-          np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
+          np.array(self._state, dtype=np.int32), reward=reward, discount=0.92)
+    
+    
+    # if self._episode_ended or self.tetris.score > 10000:
+    #   reward = self.tetris.score / 1000
+    #   return ts.termination(np.array(self._state, dtype=np.int32), reward)
+    # else:
+    #   reward = 0
+    #   if self.tetris.lineClears - prevLineClear == 4:
+    #     reward += 2
+    #   elif self.tetris.lineClears - prevLineClear > 0:
+    #     reward += 0.5
+      
+    #   for col in np.transpose(self.tetris.gameState):
+    #     filledCell = False
+    #     for i, cell in enumerate(col):
+    #         if(cell.x and not filledCell):
+    #           filledCell = True
+    #         elif(filledCell and not cell.x):
+    #           reward -= 0.25
+            
+    #   for i in range(len(colHeights)):
+    #     if(abs(avgColHeight - colHeights[i]) > 2):
+    #       reward -= 0.1
+    #     else:
+    #       reward += 0.1
+          
+      
+    #   return ts.transition(
+    #       np.array(self._state, dtype=np.int32), reward=reward, discount=1.0)
     
     
     
