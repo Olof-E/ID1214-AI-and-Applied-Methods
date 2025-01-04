@@ -1,7 +1,5 @@
 # Example file showing a basic pygame "game loop"
-import linecache
 import os
-from turtle import clear
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 
 import pygame
@@ -65,6 +63,7 @@ class Tetris():
         self.score = 0
         self.level = 0
         self.lineClears = 0
+        self.erodedLines = 0
 
         self.paused = False
         self.quickDropping = False
@@ -106,14 +105,10 @@ class Tetris():
         self.running = True
         self.dt = 0
         self.passedTime = 0
-        
-        #  [ [Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec] 
-        #    [Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec, Vec]
-        # ]
+
         
         
     def newGame(self):
-        # print("New game started")
         
         self.dead = False
         
@@ -172,11 +167,13 @@ class Tetris():
             
         if(self.checkCollision(self.pos, self.rotation)):
             self.dead = True
-            # print("You Lost")
 
-    def quickDrop(self):        
+    def quickDrop(self):
+        self.landPos = self.pos    
         while(self.updateState()):
-            pass
+            self.landPos = self.pos    
+        
+        return self.landPos.y
         
     def switchHeld(self):
         self.heldAvailable = False
@@ -210,7 +207,15 @@ class Tetris():
         for i in range(self.playArea.y):
             if(sum(cell.x for cell in self.gameState[i]) == self.playArea.x):
                 cleared.append(i)
-
+        
+        self.erodedLines = 0
+        rotatedBlock = blocks[self.currBlock][self.rotation // 90]
+        for i in range(4):
+            self.erodedLines += int(self.pos.y + rotatedBlock[i].y in cleared)
+        
+        self.erodedLines = self.erodedLines * len(cleared)
+                    
+                
         self.gameState = [row for idx, row in enumerate(self.gameState) if idx not in cleared]
         for i in range(len(cleared)):
             self.gameState.insert(0, [Vector2(0, -1)]*self.playArea.x)    
@@ -310,11 +315,11 @@ class Tetris():
             pygame.display.flip()
 
             # limits FPS to 60
-            self.dt = self.clock.tick(600) / 1000
+            self.dt = self.clock.tick(6000) / 1000
             
             # Drop piece 2 cells / s 
             self.passedTime += self.dt
-            if self.passedTime > 0.05 and not self.paused and not self.dead:
+            if self.passedTime > 0.01 and not self.paused and not self.dead:
                 self.passedTime = 0
                 self.updateState()
 
