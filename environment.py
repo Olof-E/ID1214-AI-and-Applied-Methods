@@ -44,8 +44,11 @@ from tf_agents.trajectories import time_step as ts
 # 5  |  Switch held piece
 
 
+
 class TetrisEnvironment(py_environment.PyEnvironment):
   def __init__(self):      
+    self.step_count = 0
+
     self._action_spec = array_spec.BoundedArraySpec(
         shape=(), dtype=np.int32, minimum=0, maximum=5, name='action')
     self._observation_spec = array_spec.BoundedArraySpec(
@@ -187,36 +190,116 @@ class TetrisEnvironment(py_environment.PyEnvironment):
         self._episode_ended = True
 
 
+  #TODO: Remove reward for just existing(in else statement), look at the agent.py and recalibrate
 
+
+    #self.step_count = self.step_count + 1
+    #print(self.step_count)
+
+  # 4
     if self._episode_ended:
-      reward = -2.5
+      reward = -500
+      if self.tetris.lineClears > 0:
+        print(f"steps: ")
+        print(f"lines cleared: [{self.tetris.lineClears}]")
+        reward += 100 * (self.tetris.lineClears) ** 2
+      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
+    else:
+      reward = 0
+      reward += 0.01
+      return ts.transition(
+          np.array(self._state, dtype=np.int32), reward=reward, discount=0.96)
+
+
+
+"""
+  # Left window 
+    if self._episode_ended:
+      reward = -400                
+      for col in np.transpose(self.tetris.gameState):
+        filledCell = False
+        for i, cell in enumerate(col):
+            if(cell.x and not filledCell):
+              filledCell = True
+              reward += 0.1
+            #elif(filledCell and not cell.x):
+            #  reward -= 2
+      if self.tetris.lineClears - prevLineClear > 0:
+        reward += 100 * (self.tetris.lineClears - prevLineClear)**2
+      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
+    else:
+      reward = 0.01
       for col in np.transpose(self.tetris.gameState):
         filledCell = False
         for i, cell in enumerate(col):
             if(cell.x and not filledCell):
               filledCell = True
               reward += 0.01
-            elif(filledCell and not cell.x):
-              reward -= 0.05
+      return ts.transition(
+        np.array(self._state, dtype=np.int32), reward=reward, discount=0.95)
+"""
+
+
+
+
+"""
+  # 3
+    if self._episode_ended:
+      reward = -1000
+      if self.tetris.lineClears > 0:
+        reward += 1000 * (self.tetris.lineClears) ** 2
       return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
     else:
       reward = 0
-      if self.tetris.lineClears - prevLineClear > 0:
-        reward += 14 * (self.tetris.lineClears - prevLineClear)**2
-        
-      if self.tetris.currBlock != prevBlock:
-        reward += 0.5
-        
-      if abs(maxHeight - totalHeight/10) <= 4:
-        reward += 0.08
-      # else:
-      #   reward -= 0.05
-      
-      
+      reward += 0.05
       return ts.transition(
-          np.array(self._state, dtype=np.int32), reward=reward, discount=0.92)
-    
-    
+          np.array(self._state, dtype=np.int32), reward=reward, discount=0.99)
+"""
+
+"""  # 2
+    if self._episode_ended:
+      reward = -1000
+      if self.tetris.lineClears > 0:
+        reward += 1000 * (self.tetris.lineClears) ** 2
+      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
+    else:
+      reward = 0
+      reward += 0.1
+      return ts.transition(
+          np.array(self._state, dtype=np.int32), reward=reward, discount=0.98)
+
+"""
+
+
+"""
+  # 1
+  # Right window
+    if self._episode_ended:
+      reward = -250
+      if self.tetris.lineClears > 0:
+        reward += 100 * (self.tetris.lineClears) ** 2
+      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
+    else:
+      reward = 0
+      reward += 0.1
+      return ts.transition(
+          np.array(self._state, dtype=np.int32), reward=reward, discount=0.98)
+"""
+
+
+
+
+
+
+
+
+
+
+          
+
+
+
+
     # if self._episode_ended or self.tetris.score > 10000:
     #   reward = self.tetris.score / 1000
     #   return ts.termination(np.array(self._state, dtype=np.int32), reward)

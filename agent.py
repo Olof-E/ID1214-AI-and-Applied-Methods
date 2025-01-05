@@ -19,7 +19,7 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.drivers import dynamic_step_driver
 from tf_agents.drivers import dynamic_episode_driver
 
-from PERBuffer import TFPrioritizedReplayBuffer
+#from PERBuffer import TFPrioritizedReplayBuffer
 from environment import TetrisEnvironment
 
 import matplotlib.pyplot as plt
@@ -28,18 +28,19 @@ import os
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 
-num_iterations = 50000 # @param {type:"integer"}
+num_iterations = 1000000 # @param {type:"integer"}
 
-initial_collect_steps = 500  # @param {type:"integer"}
-collect_steps_per_iteration = 5 # @param {type:"integer"}
-replay_buffer_max_length = 32000  # @param {type:"integer"}
+initial_collect_steps = 750  # @param {type:"integer"}
+collect_steps_per_iteration = 20 # @param {type:"integer"}
+replay_buffer_max_length = 75000  # @param {type:"integer"}
 
 batch_size = 64      # @param {type:"integer"}
-learning_rate = 1e-3  # @param {type:"number"}
+learning_rate = 1e-5  # @param {type:"number"}
 log_interval = 200  # @param {type:"integer"}
 
-num_eval_episodes = 10  # @param {type:"integer"}
-eval_interval = 1000  # @param {type:"integer"}
+num_eval_episodes = 20  # @param {type:"integer"}
+eval_interval = 5000  # @param {type:"integer"}
+
 
 
 
@@ -61,6 +62,7 @@ def QNetwork(env):
     
     return sequential.Sequential(dense_layers + [q_values_layer])
     
+    
 # Define a helper function to create Dense layers configured with the right
 # activation and kernel initializer.
 def dense_layer(num_units):
@@ -70,7 +72,6 @@ def dense_layer(num_units):
         kernel_initializer=tf.keras.initializers.VarianceScaling(
             scale=2.0, mode='fan_in', distribution='truncated_normal'))
     
-
 
 def Agent(train_env):
     
@@ -83,10 +84,10 @@ def Agent(train_env):
         train_env.action_spec(),
         q_network=QNetwork(train_env),
         optimizer=optimizer,
-        gamma=0.9,
-        epsilon_greedy=0.15,
+        gamma=0.99,                 
+        epsilon_greedy=0.3,
         target_update_period=100,
-        target_update_tau=0.9,
+        target_update_tau=0.25,      
         target_q_network=QNetwork(train_env),
         td_errors_loss_fn=common.element_wise_squared_loss,
         train_step_counter=train_step_counter)
@@ -116,9 +117,11 @@ def train_agent():
     eval_env = tf_py_environment.TFPyEnvironment(TetrisEnvironment())
     agent = Agent(train_env)
     
+
     eval_policy = agent.policy
     collect_policy = agent.collect_policy
-    
+
+
     random_policy = random_tf_policy.RandomTFPolicy(train_env.time_step_spec(),
                                                 train_env.action_spec())
 
@@ -240,6 +243,19 @@ def train_agent():
             print('step = {0}: Average Return = {1}'.format(step, avg_return))
             print(agent.collect_policy)
             returns.append(avg_return)
+
+        # Every x steps we save the agent which contains the collect_policy 
+        if step % 300 == 0:
+            print("Agent saved.\n")
+            tf.saved_model.save(agent, "C:/Users/Pontu/OneDrive/Skrivbord/AI_project/ID1214_Main_Project/saved_agent/5")
+            if agent._epsilon_greedy > 0.001:
+                agent._epsilon_greedy = agent._epsilon_greedy - 0.001 
+                print(agent._epsilon_greedy)
+            else:
+               continue
+        
+
+
 
 
     # final_time_step, policy_state = driver.run()
