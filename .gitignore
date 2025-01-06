@@ -1,3 +1,6 @@
 .venv
 __pycache__
-train
+/train/models/**
+/train/logs/**
+/train/checkpoints/**
+*.pdf

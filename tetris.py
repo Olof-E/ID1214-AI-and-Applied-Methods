@@ -44,7 +44,8 @@ colors = [CYAN, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED]
 
 class Tetris():
 
-    def __init__(self):
+    def __init__(self, slowMode = True):
+        self.slowMode = slowMode
         self.gameState = []
         self.playArea = Vector2(10, 20)
         self.screen = None
@@ -73,6 +74,7 @@ class Tetris():
         
     def start(self, mode):
         pygame.init()
+        pygame.font.init()
         self.init()
         if(mode):
             self.gameLoop()
@@ -93,6 +95,7 @@ class Tetris():
         
         self.screen = pygame.display.set_mode((1080, 720), pygame.DOUBLEBUF, 32)
         self.clock = pygame.time.Clock()
+        self.textFont = pygame.font.SysFont('Comic Sans MS', 20)
         
         self.nextPieces = list(range(len(blocks)))
         self.heldPiece = -1
@@ -310,18 +313,35 @@ class Tetris():
             
             # Draw border
             pygame.draw.rect(self.screen, WHITE, (topleft.x, topleft.y, self.playArea.x*32, self.playArea.y*32), width=2)
-
+            
+            
+            # Draw score & level text
+            score_text_surface = self.textFont.render("Level: {0}".format(self.level), True, WHITE)
+            level_text_surface = self.textFont.render("Score: {0}".format(self.score), True, WHITE)
+            
+            self.screen.blit(score_text_surface, (topleft.x+self.playArea.x*32 + 75, topleft.y+4*32))
+            self.screen.blit(level_text_surface, (topleft.x+self.playArea.x*32 + 75, topleft.y+4*32+30))
+            
             # flip() the display to put your work on screen
             pygame.display.flip()
-
-            # limits FPS to 60
-            self.dt = self.clock.tick(6000) / 1000
             
-            # Drop piece 2 cells / s 
-            self.passedTime += self.dt
-            if self.passedTime > 0.01 and not self.paused and not self.dead:
-                self.passedTime = 0
-                self.updateState()
+            
+            if self.slowMode:
+                # limits FPS to 60
+                self.dt = self.clock.tick(60) / 1000
+                
+                # Drop piece 2 cells / s 
+                self.passedTime += self.dt
+                if self.passedTime > 0.5 and not self.paused and not self.dead:
+                    self.passedTime = 0
+                    self.updateState()
+            else:
+                self.dt = self.clock.tick(6000) / 1000
+                
+                self.passedTime += self.dt
+                if self.passedTime > 0.01 and not self.paused and not self.dead:
+                    self.passedTime = 0
+                    self.updateState()
 
     def gameLoop(self):     
         while self.running:

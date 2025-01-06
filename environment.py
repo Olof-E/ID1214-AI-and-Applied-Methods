@@ -4,8 +4,11 @@ from __future__ import print_function
 
 
 from tetris import Tetris
+import os
 # Keep using keras-2 (tf-keras) rather than keras-3 (keras).
 # os.environ['TF_USE_LEGACY_KERAS'] = '1'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 import tensorflow as tf
 import numpy as np
@@ -14,32 +17,39 @@ from tf_agents.environments import py_environment
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 
+# Actions
+# position and rotation is encoded as a number between 0 - 39
+# where each number represent a specific column and a certain rotation for that column
+# Switching held blocks is encoded as action 40
 
 # Observations
-# 0   |  total height
-# 1   | last piece height
-# 2   | bumpiness
-# 3   | row transitions
-# 4   | column transitions
-# 5   | amount of holes
-# 6   | cumulative wells
-# 7   | eroded cells
-# 8   | lines cleared
-
-
+# 0    |  total height
+# 1    |  last piece height
+# 2    |  bumpiness
+# 3    |  row transitions
+# 4    |  column transitions
+# 5    |  amount of holes
+# 6    |  cumulative wells
+# 7    |  eroded cells
+# 8    |  lines cleared
+# 9    |  row holes
+# 10   |  current block
+# 11   |  next block
+# 12   |  held block
+# 13   |  switch held block available
 
 
 class TetrisEnvironment(py_environment.PyEnvironment):
-  def __init__(self):      
+  def __init__(self, slowMode=False):      
     self._action_spec = array_spec.BoundedArraySpec(
         shape=(), dtype=np.int32, minimum=0, maximum=40, name='action')
     self._observation_spec = array_spec.BoundedArraySpec(
-        shape=(13,), dtype=np.int32, minimum=np.concatenate(([0], [-1], [0]*7, [-1]*3, [0])), maximum=np.concatenate(([20*10], [20], [100 ]*3, [40]*2, [16], [4], [7]*3, [1])), name='observation')
+        shape=(14,), dtype=np.float32, minimum=np.concatenate(([0.0], [-1.0], [0.0]*8, [-1.0]*3, [0.0])), maximum=np.concatenate(([2.0], [2.0], [2.0]*3, [2.0]*2, [1.0], [4.0], [1.0], [7.0]*3, [1.0])), name='observation')
     
-    self._state = [0]*13
+    self._state = [0.0]*14
     self._episode_ended = False
     
-    self.tetris = Tetris()
+    self.tetris = Tetris(slowMode)
     
     self.tetris.start(False)
     
@@ -51,12 +61,12 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     return self._observation_spec
 
   def _reset(self):
-    self._state = [0]*13
+    self._state = [0.0]*14
     self._episode_ended = False
     
     self.tetris.newGame()
     
-    return ts.restart(np.array(self._state, dtype=np.int32))
+    return ts.restart(np.array(self._state, dtype=np.float32))
 
   def _step(self, action):
 
@@ -91,7 +101,7 @@ class TetrisEnvironment(py_environment.PyEnvironment):
         if(prevPos == self.tetris.pos.x):
           break
         
-      self._state[1] = self.tetris.quickDrop()
+      self._state[1] = self.tetris.quickDrop() / 20
     elif self.tetris.heldAvailable:
       self.tetris.switchHeld()
       
@@ -113,23 +123,21 @@ class TetrisEnvironment(py_environment.PyEnvironment):
           
     
     for i in range(len(colHeights)):
-      # self._state[i+8] = colHeights[i]
       if(colHeights[i] > maxHeight):
         maxHeight = colHeights[i]
       elif(colHeights[i] < minHeight):
         minHeight = colHeights[i]
       
       
-    # totalHeight /= 10
     
-    self._state[0] = totalHeight
+    self._state[0] = totalHeight / 200
           
     
     totalBump = 0
     for i in range(len(colHeights)):            
-      totalBump += (abs(colHeights[i] - colHeights[max(1, i-1)]) + abs(colHeights[i] - colHeights[min(len(colHeights)-2, i+1)]))//2
+      totalBump += (abs(colHeights[i] - colHeights[max(1, i-1)]) + abs(colHeights[i] - colHeights[min(len(colHeights)-2, i+1)]))/2
       
-    self._state[2] = totalBump
+    self._state[2] = totalBump / 100
 
     rowTotal = 0
     for y in range(self.tetris.playArea.y):
@@ -149,7 +157,7 @@ class TetrisEnvironment(py_environment.PyEnvironment):
 
       rowTotal += row_count
     
-    self._state[3] = rowTotal
+    self._state[3] = rowTotal / 100
 
     colTotal = 0
     for x in range(self.tetris.playArea.x):
@@ -169,11 +177,12 @@ class TetrisEnvironment(py_environment.PyEnvironment):
 
       colTotal += col_count
     
-    self._state[4] = colTotal
+    self._state[4] = colTotal / 100
 
 
     
     totalHoles = 0
+    rowHoles = []
     for col in np.transpose(self.tetris.gameState):
       filledCell = False
       for i, cell in enumerate(col):
@@ -181,114 +190,75 @@ class TetrisEnvironment(py_environment.PyEnvironment):
             filledCell = True
           elif(filledCell and not cell.x):
             totalHoles += 1
+            rowHoles.append(i)
     
-    self._state[5] = totalHoles
+    self._state[5] = totalHoles / 40
     
-    wells = [0]*self.tetris.playArea.x
+    wellDepths = [0]*self.tetris.playArea.x
     for y, row in enumerate(self.tetris.gameState):
-      left_empty = True
+      prevEmpty = True
       for x, cell in enumerate(row):
         if cell.x == 0:
           well = False
-          right_empty = self.tetris.playArea.x > x + 1 >= 0 and self.tetris.gameState[y][x + 1] == 0
-          if left_empty or right_empty:
+          nextEmpty = self.tetris.playArea.x > x + 1 >= 0 and self.tetris.gameState[y][x + 1] == 0
+          if prevEmpty or nextEmpty:
             well = True
-          wells[x] = 0 if well else wells[x] + 1
-          left_empty = True
+          wellDepths[x] = 0 if well else wellDepths[x] + 1
+          prevEmpty = True
         else:
-          left_empty = False
+          prevEmpty = False
           
-    self._state[6] = sum(wells) 
+          
+    self._state[6] = sum(wellDepths) / 40
     
-    self._state[7] = self.tetris.erodedLines
+    self._state[7] = self.tetris.erodedLines / 16
     
     self._state[8] = self.tetris.lineClears - prevLineClear
-    
-    # self._state[9] = minHeight
-    # self._state[10] = maxHeight
+            
+    self._state[9] = len(set(rowHoles)) / 20
     
     self._state[9] = self.tetris.currBlock
     self._state[10] = self.tetris.nextPieces[0]
     self._state[11] = self.tetris.heldPiece
     
     self._state[12] = int(self.tetris.heldAvailable)
-    
-    
+        
     if self.tetris.dead:
         self._episode_ended = True
 
 
 
     if self._episode_ended:
-      reward = -1.5
-      # for col in np.transpose(self.tetris.gameState):
-      #   filledCell = False
-      #   for i, cell in enumerate(col):
-      #       if(cell.x and not filledCell):
-      #         filledCell = True
-      #         reward += 0.01
-      #       elif(filledCell and not cell.x):
-      #         reward -= 0.05
-      return ts.termination(np.array(self._state, dtype=np.int32), reward=reward)
+      reward = -1
+      return ts.termination(np.array(self._state, dtype=np.float32), reward=reward)
     else:
       reward = 0
       if self.tetris.lineClears - prevLineClear > 0:
         print("lines cleared")
-        reward += 8 * (self.tetris.lineClears - prevLineClear)**2
+        reward += 10 * (self.tetris.lineClears - prevLineClear)**2
         print("reward is: {0}".format(reward))
         
       if self.tetris.currBlock != prevBlock:
         reward += 1
         
-        # for row in self.tetris.gameState:
-        #   prevEmpty = True
-        #   totalContinous = 0
-        #   for i, cell in enumerate(row):  
-        #     if(cell.x and prevEmpty):
-        #       prevEmpty = False
-        #     elif(cell.x and not prevEmpty):
-        #       totalContinous += 1
-        #     elif(not (cell.x and prevEmpty)):
-        #       break
+        for i, row in enumerate(self.tetris.gameState):
+          prevEmpty = True
+          maxTotalContinous = -9999
+          totalContinous = 0
+          for _, cell in enumerate(row):  
+            if(cell.x and prevEmpty):
+              prevEmpty = False
+            elif(cell.x and not prevEmpty):
+              totalContinous += 1
+            elif(not (cell.x and prevEmpty)):
+              if(totalContinous > maxTotalContinous):
+                maxTotalContinous = totalContinous
+              prevEmpty = True
           
-        #   if(totalContinous >= 6):
-        #     reward += 4
-        
-        # if abs(maxHeight - totalHeight/10) <= 4:
-        #   reward += 0.25
-        # else:
-        #   reward -= 0.45
+          if(totalContinous >= 4):
+            reward += 0.1 + 1 * maxTotalContinous/10 * (i+1)/20
       
       
       return ts.transition(
-          np.array(self._state, dtype=np.int32), reward=reward, discount=0.99)
-    
-    
-    # if self._episode_ended or self.tetris.score > 10000:
-    #   reward = self.tetris.score / 1000
-    #   return ts.termination(np.array(self._state, dtype=np.int32), reward)
-    # else:
-    #   reward = 0
-    #   if self.tetris.lineClears - prevLineClear == 4:
-    #     reward += 2
-    #   elif self.tetris.lineClears - prevLineClear > 0:
-    #     reward += 0.5
-      
-    #   for col in np.transpose(self.tetris.gameState):
-    #     filledCell = False
-    #     for i, cell in enumerate(col):
-    #         if(cell.x and not filledCell):
-    #           filledCell = True
-    #         elif(filledCell and not cell.x):
-    #           reward -= 0.25
-            
-    #   for i in range(len(colHeights)):
-    #     if(abs(avgColHeight - colHeights[i]) > 2):
-    #       reward -= 0.1
-    #     else:
-    #       reward += 0.1
-          
-      
-    #   return ts.transition(
-    #       np.array(self._state, dtype=np.int32), reward=reward, discount=1.0)
+          np.array(self._state, dtype=np.float32), reward=reward, discount=0.95)
 
