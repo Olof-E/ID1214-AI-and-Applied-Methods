@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from time import sleep
 
 
 from tetris import Tetris
@@ -46,8 +47,13 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     self._observation_spec = array_spec.BoundedArraySpec(
         shape=(14,), dtype=np.float32, minimum=np.concatenate(([0.0], [-1.0], [0.0]*8, [-1.0]*3, [0.0])), maximum=np.concatenate(([2.0], [2.0], [2.0]*3, [2.0]*2, [1.0], [4.0], [1.0], [7.0]*3, [1.0])), name='observation')
     
+    # ([2.0], [2.0], [2.0]*3, [2.0]*2, [1.0], [4.0], [1.0], [7.0]*3, [1.0])
+    # ([20*10], [20], [100 ]*3, [40]*2, [16], [4], [20], [7]*3, [1])
+    # ([20*10], [20], [100 ]*3, [40]*2, [16], [4], [20], [7]*3, [1])
     self._state = [0.0]*14
     self._episode_ended = False
+    
+    self.slowMode = slowMode
     
     self.tetris = Tetris(slowMode)
     
@@ -77,6 +83,7 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     
     prevLineClear = self.tetris.lineClears
     prevBlock = self.tetris.currBlock
+    prevHoles = self._state[5]
     
     
     # if action == 0:
@@ -104,9 +111,10 @@ class TetrisEnvironment(py_environment.PyEnvironment):
       self._state[1] = self.tetris.quickDrop() / 20
     elif self.tetris.heldAvailable:
       self.tetris.switchHeld()
-      
-    self.tetris.step()
     
+    self.tetris.step()
+    if self.slowMode:
+      sleep(0.05)
     
     colHeights = [0]*10
     totalHeight = 0
@@ -134,8 +142,8 @@ class TetrisEnvironment(py_environment.PyEnvironment):
           
     
     totalBump = 0
-    for i in range(len(colHeights)):            
-      totalBump += (abs(colHeights[i] - colHeights[max(1, i-1)]) + abs(colHeights[i] - colHeights[min(len(colHeights)-2, i+1)]))/2
+    for i in range(len(colHeights)-1):            
+      totalBump += abs(colHeights[i]-colHeights[i+1])#(abs(colHeights[i] - colHeights[max(1, i-1)]) + abs(colHeights[i] - colHeights[min(len(colHeights)-2, i+1)]))/2
       
     self._state[2] = totalBump / 100
 
@@ -213,15 +221,15 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     
     self._state[7] = self.tetris.erodedLines / 16
     
-    self._state[8] = self.tetris.lineClears - prevLineClear
+    self._state[8] = (self.tetris.lineClears - prevLineClear) / 4
             
     self._state[9] = len(set(rowHoles)) / 20
     
-    self._state[9] = self.tetris.currBlock
-    self._state[10] = self.tetris.nextPieces[0]
-    self._state[11] = self.tetris.heldPiece
+    self._state[10] = self.tetris.currBlock / 7
+    self._state[11] = self.tetris.nextPieces[0] / 7
+    self._state[12] = self.tetris.heldPiece / 7
     
-    self._state[12] = int(self.tetris.heldAvailable)
+    self._state[13] = int(self.tetris.heldAvailable)
         
     if self.tetris.dead:
         self._episode_ended = True
@@ -234,12 +242,12 @@ class TetrisEnvironment(py_environment.PyEnvironment):
     else:
       reward = 0
       if self.tetris.lineClears - prevLineClear > 0:
-        print("lines cleared")
+        # print("lines cleared")
         reward += 10 * (self.tetris.lineClears - prevLineClear)**2
-        print("reward is: {0}".format(reward))
+        # print("reward is: {0}".format(reward))
         
       if self.tetris.currBlock != prevBlock:
-        reward += 1
+        # reward += 1
         
         for i, row in enumerate(self.tetris.gameState):
           prevEmpty = True
@@ -254,11 +262,30 @@ class TetrisEnvironment(py_environment.PyEnvironment):
               if(totalContinous > maxTotalContinous):
                 maxTotalContinous = totalContinous
               prevEmpty = True
+                        
+          if(maxTotalContinous >= 4):
+            reward += 0.1 + 2.5 * maxTotalContinous/10 * (i+1)/20
+        
+        for i, col in enumerate(np.transpose(self.tetris.gameState)):
+          prevEmpty = True
+          maxTotalContinous = -9999
+          totalContinous = 0
+          for _, cell in enumerate(col):  
+            if(cell.x and prevEmpty):
+              prevEmpty = False
+            elif(cell.x and not prevEmpty):
+              totalContinous += 1
+            elif(not (cell.x and prevEmpty)):
+              if(totalContinous > maxTotalContinous):
+                maxTotalContinous = totalContinous
+              prevEmpty = True
           
-          if(totalContinous >= 4):
-            reward += 0.1 + 1 * maxTotalContinous/10 * (i+1)/20
+          if(maxTotalContinous >= 4 and maxTotalContinous <= 10):
+            reward += 0.1 + 1.5 * maxTotalContinous/10 * (i+1)/10
+        
+        reward -= (self._state[5] - prevHoles) * 3
       
       
       return ts.transition(
-          np.array(self._state, dtype=np.float32), reward=reward, discount=0.95)
+          np.array(self._state, dtype=np.float32), reward=reward, discount=0.94)
 
