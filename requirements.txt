@@ -52,7 +52,6 @@ requests-oauthlib==2.0.0
 rich==13.9.4
 rsa==4.9
 six==1.17.0
-tb-nightly==2.19.0a20250104
 tensorboard==2.18.0
 tensorboard-data-server==0.7.2
 tensorflow==2.18.0

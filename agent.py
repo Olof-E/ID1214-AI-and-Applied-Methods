@@ -5,7 +5,6 @@ import tensorflow as tf
 
 from tf_agents.agents.dqn.dqn_agent import D3qnAgent
 from tf_agents.environments import tf_py_environment
-from tf_agents.metrics import tf_metrics
 from tf_agents.policies import policy_saver
 from tf_agents.utils import common
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
@@ -24,14 +23,14 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 
-num_iterations = 800_000
+num_iterations = 500_000#6_000_000
 
 initial_collect_steps = 128  
-collect_steps_per_iteration = 16
-replay_buffer_max_length = 150_000  
+collect_steps_per_iteration = 10
+replay_buffer_max_length = 220_000  
 
-batch_size = 100      
-learning_rate = 1e-3
+batch_size = 268
+learning_rate = 4.5e-4
 log_interval = 200
 
 num_eval_episodes = 50  
@@ -48,8 +47,8 @@ def Agent(train_env):
         learning_rate=tf.compat.v1.train.exponential_decay(
             learning_rate,
             train_step_counter,   
-            int(0.55*num_iterations),
-            0.6,
+            int(0.15*num_iterations),
+            0.37,
         )
     )
     
@@ -62,22 +61,25 @@ def Agent(train_env):
             action_spec=train_env.action_spec(),
             activation_fn=tf.keras.activations.relu,
             q_layer_activation_fn=tf.keras.activations.linear,
-            fc_layer_params=(200, 100)),
+            fc_layer_params=(200, 200, 200)),
         optimizer=optimizer,
-        gamma=0.95,
+        gamma=0.94,
         epsilon_greedy=tf.compat.v1.train.polynomial_decay(
             learning_rate=1.0,
             global_step=train_step_counter,
-            decay_steps=int(0.75*num_iterations),
-            power=3.5,  
-            end_learning_rate=0.01),
-        target_update_period=75,   
-        target_update_tau=0.1,
+            decay_steps=int(0.7*num_iterations),
+            power=2.7,  
+            end_learning_rate=0.04),
+        target_update_period=100,   
+        target_update_tau=0.25,
         td_errors_loss_fn=common.element_wise_huber_loss,
-        train_step_counter=train_step_counter)
-
-    agent.initialize()
+        train_step_counter=train_step_counter,
+        debug_summaries=True,
+        summarize_grads_and_vars=False
+        )
     
+    agent.initialize()
+
     return agent
 
 
@@ -96,45 +98,12 @@ def main(argv):
 
     else:
         train_agent()
-
-# Quit training early and save currently stored data
-def quit_early(agent, eval_env, tf_policy_saver, policy_dir, returns, episode_len, losses, step):
-    global end_early
-    avg_return, avg_length = compute_avg_return(eval_env, agent.policy, num_eval_episodes)
-    print('step = {0}: Average Return = {1}: Average Length = {2}'.format(step, avg_return, avg_length))  
-    print(agent.collect_policy)
-
-    current_time = datetime.datetime.now()
-    tf_policy_saver.save(os.path.join(policy_dir, "{0:.3f}-{1}-{2}-{3}-{4}.v2".format(avg_return, current_time.day, current_time.hour, current_time.minute, step)))
-
-    returns.append(avg_return)
-    episode_len.append(avg_length)
-    
-    # Create plots from gathered training data
-    steps = [i for i in range(0, eval_interval*len(returns), eval_interval)]
-    steps2 = [i for i in range(0, log_interval*len(losses), log_interval)]
-    plt.figure()
-    plt.plot(steps, episode_len, label="average episode length")
-    plt.plot(steps, returns, label="average reward")
-    plt.xlabel("Step (n)")
-    plt.legend()
-    plt.savefig("graph.pdf")
-    
-    plt.figure()
-    plt.plot(steps2, losses, label="loss")
-    plt.xlabel("Step (n)")
-    plt.ylabel("loss")
-    plt.legend()
-    plt.savefig("graph2.pdf")
-    end_early = True
-    plt.show()
-    
     
 
 def train_agent():
     
     # Setup parallel data collection environments
-    train_env = tf_py_environment.TFPyEnvironment(parallel_py_environment.ParallelPyEnvironment([TetrisEnvironment]*16))
+    train_env = tf_py_environment.TFPyEnvironment(parallel_py_environment.ParallelPyEnvironment([TetrisEnvironment]*20))
     eval_env = tf_py_environment.TFPyEnvironment(TetrisEnvironment())
     
     agent = Agent(train_env)
@@ -148,27 +117,20 @@ def train_agent():
     max_length=replay_buffer_max_length)
     
     # setup the buffer observer
-    replay_observer = [replay_buffer.add_batch]    
-    
-    train_metrics = [
-            tf_metrics.NumberOfEpisodes(),
-            tf_metrics.EnvironmentSteps(),
-            tf_metrics.AverageReturnMetric(buffer_size=collect_steps_per_iteration),
-            tf_metrics.AverageEpisodeLengthMetric(buffer_size=collect_steps_per_iteration),
-    ]
+    replay_observer = [replay_buffer.add_batch]
     
     # Driver to collect data from envrionment
     driver = dynamic_step_driver.DynamicStepDriver(
         train_env, collect_policy, replay_observer, num_steps=collect_steps_per_iteration)
     
-    driver.run()
+   
     
     # Create the dataset from buffer
     dataset = replay_buffer.as_dataset(
-        num_parallel_calls=3,
+        num_parallel_calls=8,
         sample_batch_size=batch_size,
         num_steps=2,
-    single_deterministic_pass=False).prefetch(3)
+    single_deterministic_pass=False).prefetch(8)
     
     iterator = iter(dataset)
     
@@ -184,40 +146,40 @@ def train_agent():
     epsilon = tf.compat.v1.train.polynomial_decay(
             learning_rate=1.0,
             global_step=agent.train_step_counter,
-            decay_steps=int(0.75*num_iterations),
-            power=3.5,  
-            end_learning_rate=0.01)
+            decay_steps=int(0.7*num_iterations),
+            power=2.7,  
+            end_learning_rate=0.04)
     
     learn_rate = tf.compat.v1.train.exponential_decay(
             learning_rate,
             agent.train_step_counter,   
-            int(0.55*num_iterations),
-            0.6,
+            int(0.15*num_iterations),
+            0.37,
         )
 
     agent.train = common.function(agent.train)
 
     agent.train_step_counter.assign(0)
     
-    returns = []
-    episode_len = []
-    losses = []
-    
     time_step = train_env.reset()
     
+    current_time = datetime.datetime.now()
     
-    # train_dir = os.path.join("./train", '')    
-    # train_summary_writer = tf.summary.create_file_writer(
-    #             train_dir, flush_millis=10000)
-    # train_summary_writer.set_as_default()
+    train_dir = os.path.join("./train/logs", "{0}-{1}-{2}".format(current_time.day, current_time.hour, current_time.minute))    
+    train_summary_writer = tf.summary.create_file_writer(
+                train_dir, flush_millis=10000, name="test")
+    train_summary_writer.set_as_default()
     
+    for i in range(100):
+        driver.run()
+    
+    #tf.summary.trace_on(graph=True)
+        
     # Model policy saver
-    policy_dir = os.path.join("./train", 'models')
+    policy_dir = os.path.join("./train/", 'models')
     tf_policy_saver = policy_saver.PolicySaver(agent.policy)    
     
-    keyboard.on_press_key("p", lambda _: quit_early(agent, eval_env, tf_policy_saver, policy_dir, returns, episode_len, losses, step))
-    
-    max_return = -99999
+    max_return = 80     
     
     # Main training loop
     for i in range(num_iterations):
@@ -233,42 +195,23 @@ def train_agent():
         step = agent.train_step_counter.numpy()
 
         if step % log_interval == 0:
-            losses.append(train_loss)
             print('step = {0}: loss = {1:.6f}: beta: {2:.6f}: epsilon: {3:.6f}: learning rate: {4:.6f}'.format(step, train_loss, beta(), epsilon(), learn_rate()))
-            # for train_metric in train_metrics:
-            #     train_metric.tf_summaries(train_step=agent.train_step_counter, step_metrics=train_metrics[:2])
-
+            tf.compat.v2.summary.scalar(name="epsilon", data=epsilon(), step=step)
+            tf.compat.v2.summary.scalar(name="learning rate", data=learn_rate(), step=step)
+            
+            
         if step % eval_interval == 0:
             avg_return, avg_length = compute_avg_return(eval_env, agent.policy, num_eval_episodes)
             print('step = {0}: Average Return = {1}: Average Length = {2}'.format(step, avg_return, avg_length))  
-            print(agent.collect_policy)
+            
+            tf.compat.v2.summary.scalar(name="avg. return", data=avg_return, step=step)
+            #tf.compat.v2.summary.trace_export(name="DuelingQNetwork", step=step)
+            
             
             if(avg_return > max_return):
                 max_return = avg_return
                 current_time = datetime.datetime.now()
-                tf_policy_saver.save(os.path.join(policy_dir, "{0:.3f}-{1}-{2}-{3}-{4}.v2".format(avg_return, current_time.day, current_time.hour, current_time.minute, step)))
-            
-            returns.append(avg_return)
-            episode_len.append(avg_length)
-            
-            
-    # Create plots from gathered training data
-    steps = [i for i in range(0, eval_interval*len(returns), eval_interval)]
-    steps2 = [i for i in range(0, log_interval*len(losses), log_interval)]
-    plt.figure()
-    plt.plot(steps, episode_len, label="average episode length")
-    plt.plot(steps, returns, label="average reward")
-    plt.xlabel("Step (n)")
-    plt.legend()
-    plt.savefig("graph.pdf")
-    
-    plt.figure()
-    plt.plot(steps2, losses, label="loss")
-    plt.xlabel("Step (n)")
-    plt.ylabel("loss")
-    plt.legend()
-    plt.savefig("graph2.pdf")
-    plt.show()
+                tf_policy_saver.save(os.path.join(policy_dir, "{0:.3f}-{1}-{2}-{3}-{4}.v22".format(avg_return, current_time.day, current_time.hour, current_time.minute, step)))
     
 def compute_avg_return(environment, policy, num_episodes=10):
   total_return = 0.0
